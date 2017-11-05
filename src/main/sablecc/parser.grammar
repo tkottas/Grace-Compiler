@@ -1,0 +1,225 @@
+Package compiler;
+
+
+Helpers
+  all = [0 .. 0xFFFF];
+  sp = ' ';
+  lf = 10;
+  cr = 0x000d;
+  ff = 0x000c;
+  ht = 0x0009;
+  a = '"';
+  b = ''';
+  c = '\';
+  abcd = a | b | c;
+  hex= '\x'[['0'..'9']+[['a'..'f']+['A'..'F']]][['0'..'9']+[['a'..'f']+['A'..'F']]];
+  escape = '\n' | '\t' | '\r' | '\0' | '\\' | '\'''' | '\"' | hex;
+  letter = ['a'.. 'z'] | ['A'..'Z'];
+  number = (['0'..'9'])+;
+  eol = cr lf | cr | lf;
+  line_terminator = lf | cr | cr lf;
+  identifier = letter( letter | '_' | number)*;
+  integers = number;
+  characters = ''' (([all-[['"'+''']+'\']]) | escape) ''';
+  string = '"' ([all-[[['"'+''']+'\']+[cr+lf]]] | escape)+ '"';
+  white_space = (sp | ht | ff | line_terminator)*;
+  comment_content = [all - [[cr + lf]+'$']];
+  comment_content2 = [all - [cr + lf]];
+  comment_content3 = [all - '$'];
+
+Tokens
+  err_num = number (letter);
+  and = 'and';
+  char = 'char';
+  div = 'div';
+  do = 'do';
+  else = 'else';
+  fun = 'fun';
+  if = 'if';
+  int = 'int';
+  mod = 'mod';
+  not = 'not';
+  nothing = 'nothing';
+  or = 'or';
+  ref = 'ref';
+  return = 'return';
+  then = 'then';
+  var = 'var';
+  while = 'while';
+
+  id = identifier;
+  int_const = integers;
+  char_const = characters;
+  string_literal = string;
+
+  plus = '+';
+  minus = '-';
+  times = '*';
+  not_equal = '#';
+  equal = '=';
+  less = '<';
+  greater = '>';
+  lessequal = '<=';
+  greaterequal = '>=';
+
+  lparen = '(';
+  rparen = ')';
+  lbracket = '[';
+  rbracket = ']';
+  lcbracket = '{';
+  rcbracket = '}';
+  comma = ',';
+  semi = ';';
+  double_stop = ':';
+  arrow = '<-';
+
+  white_space = white_space;
+  multi_comment = '$$' (white_space | (all(comment_content3))*)* '$$';
+  line_comment = '$' (comment_content(comment_content2)*)* eol;
+
+Ignored Tokens
+  white_space,
+  line_comment,
+  multi_comment;
+
+
+Productions
+
+program        {-> program}    = func_def                                                                   {-> New program(func_def.func_def)};
+func_def       {-> func_def}   = header local_def* block                                                    {-> New func_def(header.header,[local_def.local_def],block.block)};
+header         {-> header}     = fun id lparen defs? rparen double_stop ret_type                            {-> New header(id,[defs.fpar_def],ret_type)};
+defs           {-> fpar_def*}  = fpar_def mfpar_def*                                                        {-> [fpar_def.fpar_def,mfpar_def.fpar_def]};
+mfpar_def      {-> fpar_def }  = semi fpar_def                                                              {-> fpar_def};
+fpar_def       {-> fpar_def}   = ref? id mid* double_stop fpar_type                                         {-> New fpar_def(ref,[id,mid.id],fpar_type.fpar_type)};
+mid            {->  id}        = comma id                                                                   {-> id};
+data_type      {-> data_type}  = {int} int                                                                  {-> New data_type.int(int)} 
+                               | {char} char                                                                {-> New data_type.char(char)};
+type           {-> type}       = data_type mtype*                                                           {-> New type(data_type.data_type,[mtype.mtype])};
+mtype          {-> mtype}      = lbracket int_const rbracket                                                {-> New mtype(int_const)};
+ret_type       {-> ret_type}   = {data_type} data_type                                                      {-> New ret_type.data_type(data_type.data_type)} 
+                               | {nothing} nothing                                                          {-> New ret_type.nothing(nothing)};
+fpar_type      {-> fpar_type}  = data_type mbracket? mtype*                                                 {-> New fpar_type(data_type.data_type,mbracket,[mtype.mtype])};
+mbracket       {-> mbracket}   = lbracket rbracket                                                          {-> New mbracket(lbracket,rbracket)};
+local_def      {-> local_def}  = {func_def} func_def                                                        {-> New local_def.func_def(func_def)}    
+                               | {func_decl} func_decl                                                      {-> New local_def.func_decl(func_decl)}
+                               | {var_def} var_def                                                          {-> New local_def.var_def(var_def)};
+var_def        {-> var_def}    = var id mid* double_stop type semi                                          {-> New var_def([id,mid.id],type.type)};
+func_decl      {-> func_decl}  = header semi                                                                {-> New func_decl(header.header)};
+stmt           {-> stmt}       = {semi} semi                                                                {-> New stmt.noop(semi)}
+                               | {assignment} l_value arrow expr semi                                       {-> New stmt.assignment(l_value.l_value,expr.expr)}
+                               | {block} block                                                              {-> New stmt.block(block.block)} 
+                               | {func_call} func_call semi                                                 {-> New stmt.func_call(func_call.func_call)}
+                               | {if_stmt} if_stmt                                                          {-> if_stmt.stmt} 
+                               | {while_stmt} while cond do stmt                                            {-> New stmt.while(cond.cond,stmt.stmt)} 
+                               | {return} return expr? semi                                                 {-> New stmt.return(return,expr.expr)};
+if_stmt        {-> stmt}       = {no_else} if cond then [then_stmt]:stmt                                    {-> New stmt.no_else(cond.cond,then_stmt.stmt)}
+                               | {with_else} if cond then [then_stmt]:stmt_with_else else [else_stmt]:stmt  {-> New stmt.with_else(cond.cond,then_stmt.stmt,else_stmt.stmt)};
+stmt_with_else {-> stmt}       = {semi} semi                                                                {-> New stmt.noop(semi)}
+                               | {assignment} l_value arrow expr semi                                       {-> New stmt.assignment(l_value.l_value,expr.expr)}
+                               | {block} block                                                              {-> New stmt.block(block.block)}
+                               | {func_call} func_call semi                                                 {-> New stmt.func_call(func_call.func_call)}
+                               | {if_else_smt} if_else_stmt                                                 {-> if_else_stmt.stmt}  
+                               | {while_stmt} while cond do stmt_with_else                                  {-> New stmt.while(cond.cond,stmt_with_else.stmt)}
+                               | {return} return expr? semi                                                 {-> New stmt.return(return,expr.expr)};
+if_else_stmt   {-> stmt}       = if cond then [then_stmt]:stmt_with_else else [else_stmt]:stmt_with_else    {-> New stmt.with_else(cond.cond,then_stmt.stmt,else_stmt.stmt)};
+block          {-> block}      = lcbracket stmt* rcbracket                                                  {-> New block([stmt.stmt])};
+func_call      {-> func_call}  = id lparen mexpr2? rparen                                                   {-> New func_call(id,mexpr2)};
+mexpr          {-> expr  }     = comma expr                                                                 {-> expr};
+mexpr2         {-> mexpr2}     = expr mexpr*                                                                {-> New mexpr2([expr.expr,mexpr.expr])};
+l_value        {-> l_value}    = {identifier} id                                                            {-> New l_value.identifier(id)} 
+                               | {string_literal} string_literal                                            {-> New l_value.string_literal(string_literal)}
+                               | {array} l_value lbracket expr rbracket                                     {-> New l_value.array(l_value.l_value,lbracket,expr.expr,rbracket)}; 
+expr           {-> expr}       = {term} term                                                                {-> term.expr} 
+                               | {add} expr plus term                                                       {-> New expr.plus(expr.expr,term.expr)}
+                               | {minus} expr minus term                                                    {-> New expr.minus(expr.expr,term.expr)};
+term           {-> expr}       = {bfact} bfact                                                              {-> bfact.expr} 
+                               | {mult} term times bfact                                                    {-> New expr.mul(term.expr,bfact.expr)} 
+                               | {div}  term div bfact                                                      {-> New expr.div(term.expr,bfact.expr)}
+                               | {mod}  term mod bfact                                                      {-> New expr.mod(term.expr,bfact.expr)};
+bfact          {-> expr}       = {fact} fact                                                                {-> fact.expr} 
+                               | {signed} signed                                                            {-> New expr.signed(signed.signed)};
+fact           {-> expr}       = {int_const} int_const                                                      {-> New expr.number(int_const)}
+                               | {char_const} char_const                                                    {-> New expr.char(char_const)}
+                               | {l_value} l_value                                                          {-> New expr.assign(l_value.l_value)}
+                               | {func_call} func_call                                                      {-> New expr.calling(func_call.func_call)}
+                               | {parens} lparen expr rparen                                                {-> expr.expr};
+plus_or_minus  {-> sign}       = {plus} plus                                                                {-> New sign.plus(plus)}
+                               | {minus} minus                                                              {-> New sign.minus(minus)};
+signed         {-> signed}     = plus_or_minus expr55                                                       {-> New signed(plus_or_minus.sign,expr55.expr55)};
+expr55         {-> expr55}     = {signed} signed                                                            {-> New expr55.signed(signed)} 
+                               | {int_const} int_const                                                      {-> New expr55.number(int_const)}
+                               | {id} id                                                                    {-> New expr55.identifier(id)}
+                               | {parens} lparen expr rparen                                                {-> New expr55.parens(expr.expr)}; 
+cond           {-> cond}       = {term2} term2                                                              {-> term2.cond} 
+                               | {or} cond or term2                                                         {-> New cond.or(cond.cond,term2.cond)};
+term2          {-> cond}       = {term3} term3                                                              {-> term3.cond}
+                               | {and} term2 and term3                                                      {-> New cond.and(term2.cond,term3.cond)};
+term3          {-> cond}       = {bfact2} bfact2                                                            {-> bfact2.cond} 
+                               | {not} not term3                                                            {-> New cond.not(term3.cond)};           
+bfact2         {-> cond}       = {cond_parens} lparen cond rparen                                           {-> cond.cond} 
+                               | {equal} [lexpr]:expr equal [rexpr]:expr                                    {-> New cond.equal(lexpr.expr,rexpr.expr)} 
+                               | {not_equal} [lexpr]:expr not_equal [rexpr]:expr                            {-> New cond.not_equal(lexpr.expr,rexpr.expr)}
+                               | {less} [lexpr]:expr less [rexpr]:expr                                      {-> New cond.less(lexpr.expr,rexpr.expr)}
+                               | {greater} [lexpr]:expr greater [rexpr]:expr                                {-> New cond.greater(lexpr.expr,rexpr.expr)}
+                               | {lessequal} [lexpr]:expr lessequal [rexpr]:expr                            {-> New cond.lessequal(lexpr.expr,rexpr.expr)}
+                               | {greaterequal} [lexpr]:expr greaterequal [rexpr]:expr                      {-> New cond.greaterequal(lexpr.expr,rexpr.expr)};
+
+Abstract Syntax Tree
+program   = func_def;
+func_def  = header local_def* block;
+header    = id fpar_def* ret_type;
+fpar_def  = ref? id* fpar_type;
+mid       = id;
+data_type = {int} int
+          | {char} char;
+type      = data_type mtype*;
+mtype     = int_const;
+ret_type  = {data_type} data_type
+          | {nothing} nothing;
+fpar_type = data_type mbracket? mtype*;
+mbracket  = lbracket rbracket;
+local_def = {func_def} func_def
+          | {func_decl} func_decl
+          | {var_def} var_def;
+var_def   = id* type;
+func_decl = header;
+stmt      = {noop} semi
+          | {assignment} l_value expr
+          | {block} block
+          | {func_call} func_call
+          | {no_else} cond [then_stmt]:stmt
+          | {with_else} cond [then_stmt]:stmt [else_stmt]:stmt
+          | {while} cond stmt
+          | {return} return expr?;
+block     = stmt*;
+func_call = id mexpr2?;
+mexpr2    = expr*;
+l_value   = {identifier} id
+          | {string_literal} string_literal
+          | {array} l_value lbracket expr rbracket;
+expr      = {plus} [lexpr]:expr [rexpr]:expr
+          | {minus} [lexpr]:expr [rexpr]:expr
+          | {mul} [lexpr]:expr [rexpr]:expr
+          | {div} [lexpr]:expr [rexpr]:expr
+          | {mod} [lexpr]:expr [rexpr]:expr
+          | {signed} signed
+          | {number} int_const
+          | {char}  char_const
+          | {assign} l_value
+          | {calling} func_call;
+signed    = sign expr55;
+sign      = {plus} plus
+          | {minus} minus; 
+expr55    = {signed} signed
+          | {number} int_const
+          | {identifier} id
+          | {parens} expr;
+cond      = {or} [lcond]:cond [rcond]:cond
+          | {and} [lcond]:cond [rcond]:cond
+          | {not} cond
+          | {equal} [lexpr]:expr [rexpr]:expr 
+          | {not_equal} [lexpr]:expr [rexpr]:expr 
+          | {less} [lexpr]:expr [rexpr]:expr
+          | {greater} [lexpr]:expr [rexpr]:expr
+          | {lessequal} [lexpr]:expr [rexpr]:expr
+          | {greaterequal} [lexpr]:expr [rexpr]:expr;

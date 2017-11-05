@@ -1,0 +1,20 @@
+
+
+# Instructions
+
+## To compile
+
+   mvn compile
+
+## To create a packaged JAR file
+
+   mvn package
+
+## To clean
+
+   mvn clean
+ 
+
+## To execute(optional path)
+
+   java -cp target/compiler-1.0-SNAPSHOT.jar compiler.Main
