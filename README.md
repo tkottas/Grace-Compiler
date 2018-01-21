@@ -2,7 +2,14 @@
 Experimental Compiler using SableCC as Lexer and Parser,Java as Semantic Checker and x8086 Assembly. 
 Grammar rules are similar to C Programming Language.
 
-#Additional Rules
-Supported Data types Integer and Characters only and Nested Functions. 
-Every program begin with a function without arguments.
+To Do
+-Clean Code & merge methods that can be merged
+-Write better assembly i.e. char data type doesn't work
+
+FUTURE
+Add capabilities i.e. structures
+
+Additional Rules
+Supported Data types Integer and Characters only.
+Read SableCC for the Language Grammar
 
