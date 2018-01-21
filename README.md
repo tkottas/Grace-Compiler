@@ -7,7 +7,7 @@ To Do
 -Write better assembly i.e. char data type doesn't work
 
 FUTURE
-Add capabilities i.e. structures
+Add capabilities i.e. structs,classes etc
 
 Additional Rules
 Supported Data types Integer and Characters only.
